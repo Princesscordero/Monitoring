@@ -3,31 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Energy Harvesting Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="brand">
-            <div class="logo">E</div>
-            <div class="brand-copy">
-                <h1>Energy Monitor</h1>
-                <span>Piezoelectric System</span>
+    <div class="sidebar is-collapsed" id="sidebar">
+        <div class="sidebar-top">
+            <div class="brand">
+                <div class="logo">E</div>
+                <div class="brand-copy">
+                    <h1>Energy Monitor</h1>
+                    <span>Piezoelectric System</span>
+                </div>
             </div>
+            <button class="sidebar-collapse-btn" id="sidebarToggle" type="button" aria-label="Expand sidebar" title="Toggle sidebar">
+                <span class="sidebar-toggle-icon"><</span>
+            </button>
         </div>
 
         <nav class="main-nav">
-            <a href="#" class="nav-item active" data-view="dashboard">Dashboard</a>
-            <a href="#" class="nav-item" data-view="ports">Ports</a>
-            <a href="#" class="nav-item" data-view="analytics">Analytics</a>
-            <a href="#" class="nav-item" data-view="notifications">Notifications</a>
-            <a href="#" class="nav-item" data-view="reports">Reports</a>
+            <a href="#" class="nav-item active" data-view="dashboard" aria-label="Dashboard" title="Dashboard">
+                <span class="nav-icon" aria-hidden="true">📊</span>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-view="ports" aria-label="Ports" title="Ports">
+                <span class="nav-icon" aria-hidden="true">🔌</span>
+                <span class="nav-label">Ports</span>
+            </a>
+            <a href="#" class="nav-item" data-view="analytics" aria-label="Analytics" title="Analytics">
+                <span class="nav-icon" aria-hidden="true">📈</span>
+                <span class="nav-label">Analytics</span>
+            </a>
+            <a href="#" class="nav-item" data-view="notifications" aria-label="Notifications" title="Notifications">
+                <span class="nav-icon" aria-hidden="true">🔔</span>
+                <span class="nav-label">Notifications</span>
+            </a>
+            <a href="#" class="nav-item" data-view="reports" aria-label="Reports" title="Reports">
+                <span class="nav-icon" aria-hidden="true">📄</span>
+                <span class="nav-label">Reports</span>
+            </a>
         </nav>
 
         <div class="sidebar-footer">
-            <button class="sidebar-action" onclick="openSettings()">System Settings</button>
-            <button class="sidebar-action theme-toggle" id="themeToggle" type="button">Light Mode</button>
+            <button class="sidebar-action" id="openSettingsBtn" type="button" aria-label="System Settings" title="System Settings">
+                <span class="nav-icon" aria-hidden="true">⚙️</span>
+                <span class="nav-label">System Settings</span>
+            </button>
+            <button class="sidebar-action theme-toggle" id="themeToggle" type="button" aria-label="Toggle Theme" title="Toggle Theme">
+                <span class="nav-icon" aria-hidden="true">☀️</span>
+                <span class="nav-label">Light Mode</span>
+            </button>
+            <a class="sidebar-action sidebar-action-danger" href="/logout" aria-label="Log out" title="Log out">
+                <span class="nav-icon" aria-hidden="true">↩️</span>
+                <span class="nav-label">Log out</span>
+            </a>
             <div id="esp32Status" class="status-pill offline">Simulation Mode</div>
         </div>
     </div>
@@ -337,6 +368,7 @@
     <div class="toast-stack" id="toastStack"></div>
 
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>

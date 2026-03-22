@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const navItems = document.querySelectorAll(".nav-item");
   const esp = document.getElementById("esp32Status");
+  const openSettingsButton = document.getElementById("openSettingsBtn");
   const closeSettingsButton = document.getElementById("closeSettingsBtn");
   const saveSettingsButton = document.getElementById("saveSettingsBtn");
   const settingsModal = document.getElementById("settingsModal");
@@ -10,6 +11,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const alertsFeed = document.getElementById("alertsFeed");
   const alertsStatus = document.getElementById("alertsStatus");
   const toastStack = document.getElementById("toastStack");
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+
+  function withCsrfHeaders(headers = {}) {
+    return {
+      ...headers,
+      "X-CSRF-Token": csrfToken
+    };
+  }
 
   const powerData = {
     labels: [],
@@ -456,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await fetch("/api/settings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrfHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
 
@@ -484,6 +493,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (closeSettingsButton) {
     closeSettingsButton.addEventListener("click", closeSettings);
+  }
+
+  if (openSettingsButton) {
+    openSettingsButton.addEventListener("click", window.openSettings);
   }
 
   if (saveSettingsButton) {

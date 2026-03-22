@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const stopButton = document.getElementById("stopButton");
     const manualButton = document.getElementById("manualButton");
     const toastStack = document.getElementById("toastStack");
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
     let manualEnabled = true;
     let alertsEnabled = true;
@@ -104,6 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
     async function sendPortCommand(command, options = {}) {
         const response = await fetch(`/port/${portId}/${command}`, {
             method: "POST",
+            headers: {
+                "X-CSRF-Token": csrfToken,
+                ...(options.headers || {})
+            },
             ...options
         });
         return response.json();

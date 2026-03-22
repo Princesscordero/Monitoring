@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Admin Login - Energy Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -36,6 +37,7 @@
         </section>
 
         <form method="POST" class="login-card">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="login-card-header">
                 <p class="section-kicker">Admin Access</p>
                 <h2>Sign in</h2>

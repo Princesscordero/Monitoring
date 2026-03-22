@@ -18,21 +18,30 @@ import secrets
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ==========================
 # APP SETUP
 # ==========================
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key-change-this"
+app.config.update(
+    SECRET_KEY=os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_SECURE_COOKIES", "").lower() in {"1", "true", "yes"},
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    MAX_CONTENT_LENGTH=64 * 1024
+)
 
 # ==========================
 # ADMIN CREDENTIALS
 # ==========================
 
-ADMIN_USERNAME = "admin"
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD_HASH = (
+    os.environ.get("ADMIN_PASSWORD_HASH")
+    or
     "scrypt:32768:8:1$RKCPu0yAieqvD4Nb$"
     "67c554370328ade87eb18e39fd1b0d0bdfc5da0376dcd0190cf1fbe801603ba2797c68f045967728c53b5336bee125d24f26cca5e48ba7fe6f655921eebf86e4"
 )
@@ -114,7 +123,7 @@ ports = {
 # ==========================
 # ESP32 LIVE DATA BUFFER
 # ==========================
-ESP32_API_KEY = "CHANGE_THIS_TO_A_SECRET_KEY"
+ESP32_API_KEY = os.environ.get("ESP32_API_KEY", "CHANGE_THIS_TO_A_SECRET_KEY")
 ESP32_TTL_SECONDS = 6  # if no data for 6s, treat ESP32 as OFFLINE
 
 esp32_last = {
@@ -132,10 +141,105 @@ GOOGLE_ALLOWED_EMAILS = {
 }
 RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "").strip()
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "").strip()
+LOGIN_WINDOW_SECONDS = 300
+LOGIN_MAX_ATTEMPTS = 5
+login_attempts = {}
 
 
 def is_admin_logged_in():
     return session.get("admin_logged_in")
+
+
+def get_client_ip():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def get_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+def validate_csrf():
+    expected_token = session.get("csrf_token")
+    provided_token = (
+        request.headers.get("X-CSRF-Token")
+        or request.form.get("csrf_token")
+        or (request.get_json(silent=True) or {}).get("csrf_token")
+    )
+    return bool(expected_token and provided_token and secrets.compare_digest(expected_token, provided_token))
+
+
+def prune_login_attempts(now=None):
+    now = now or time.time()
+    for ip, attempts in list(login_attempts.items()):
+        fresh_attempts = [ts for ts in attempts if now - ts <= LOGIN_WINDOW_SECONDS]
+        if fresh_attempts:
+            login_attempts[ip] = fresh_attempts
+        else:
+            login_attempts.pop(ip, None)
+
+
+def is_login_rate_limited(ip_address):
+    now = time.time()
+    prune_login_attempts(now)
+    return len(login_attempts.get(ip_address, [])) >= LOGIN_MAX_ATTEMPTS
+
+
+def record_login_failure(ip_address):
+    now = time.time()
+    attempts = login_attempts.setdefault(ip_address, [])
+    attempts.append(now)
+    prune_login_attempts(now)
+
+
+def clear_login_failures(ip_address):
+    login_attempts.pop(ip_address, None)
+
+
+@app.context_processor
+def inject_security_context():
+    return {
+        "csrf_token": get_csrf_token()
+    }
+
+
+@app.before_request
+def enforce_security_controls():
+    session.permanent = True
+
+    if request.method == "POST" and request.endpoint not in {"esp32_ingest"}:
+        if not validate_csrf():
+            return jsonify({"ok": False, "error": "Invalid CSRF token"}), 400
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net https://www.google.com https://www.gstatic.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https://www.gstatic.com; "
+        "font-src 'self' data:; "
+        "connect-src 'self' https://accounts.google.com https://www.google.com; "
+        "frame-src https://www.google.com https://www.gstatic.com; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'self'; "
+        "form-action 'self' https://accounts.google.com"
+    )
+    return response
 
 
 def fetch_json(url, data=None, headers=None):
@@ -265,6 +369,16 @@ def login():
     error = None
 
     if request.method == "POST":
+        client_ip = get_client_ip()
+        if is_login_rate_limited(client_ip):
+            error = "Too many login attempts. Please wait a few minutes and try again."
+            return render_template(
+                "login.html",
+                error=error,
+                google_login_enabled=google_login_enabled(),
+                recaptcha_site_key=RECAPTCHA_SITE_KEY
+            ), 429
+
         recaptcha_ok, recaptcha_errors = verify_recaptcha(
             request.form.get("g-recaptcha-response"),
             request.remote_addr
@@ -286,8 +400,11 @@ def login():
             and check_password_hash(ADMIN_PASSWORD_HASH, password)
         ):
             session["admin_logged_in"] = True
+            session["admin_email"] = username
+            clear_login_failures(client_ip)
             return redirect(url_for("home"))
         else:
+            record_login_failure(client_ip)
             error = "Invalid username or password"
 
     return render_template(
@@ -364,6 +481,7 @@ def google_callback():
 
     session["admin_logged_in"] = True
     session["admin_email"] = email
+    clear_login_failures(get_client_ip())
     return redirect(url_for("home"))
 
 @app.route("/port/<port_id>/start", methods=["POST"])
@@ -514,9 +632,32 @@ def manage_settings():
 
     data = request.get_json(silent=True) or {}
 
-    for key in settings:
-        if key in data:
-            settings[key] = data[key]
+    numeric_ranges = {
+        "low_battery_cutoff": (5, 50),
+        "max_session_minutes": (5, 180),
+        "esp32_ttl": (1, 60),
+        "metrics_interval": (1, 30),
+        "battery_interval": (1, 30),
+        "port_interval": (1, 20),
+        "connection_toggle_interval": (5, 120)
+    }
+
+    for key, value in data.items():
+        if key not in settings:
+            continue
+
+        if key in numeric_ranges:
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "error": f"Invalid value for {key}"}), 400
+
+            minimum, maximum = numeric_ranges[key]
+            settings[key] = max(minimum, min(maximum, parsed))
+            continue
+
+        if key in {"auto_start_on_connect", "enable_esp32", "alerts_enabled"}:
+            settings[key] = bool(value)
 
     return jsonify({"ok": True, "settings": settings})
 
@@ -846,4 +987,4 @@ def export_report_csv():
 # ==========================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"})
