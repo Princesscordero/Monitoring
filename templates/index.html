@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Energy Harvesting Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="brand">
+            <div class="logo">E</div>
+            <div class="brand-copy">
+                <h1>Energy Monitor</h1>
+                <span>Piezoelectric System</span>
+            </div>
+        </div>
+
+        <nav class="main-nav">
+            <a href="#" class="nav-item active" data-view="dashboard">Dashboard</a>
+            <a href="#" class="nav-item" data-view="ports">Ports</a>
+            <a href="#" class="nav-item" data-view="analytics">Analytics</a>
+            <a href="#" class="nav-item" data-view="notifications">Notifications</a>
+            <a href="#" class="nav-item" data-view="reports">Reports</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="sidebar-action" onclick="openSettings()">System Settings</button>
+            <button class="sidebar-action theme-toggle" id="themeToggle" type="button">Light Mode</button>
+            <div id="esp32Status" class="status-pill offline">Simulation Mode</div>
+        </div>
+    </div>
+
+    <main class="main-content">
+        <div id="view-dashboard" class="view active">
+            <section class="hero-panel">
+                <div>
+                    <p class="section-kicker">System Overview</p>
+                    <h2>Harvesting, storage, and charging status in one view.</h2>
+                    <p class="hero-copy">
+                        Track live power output, battery condition, and per-port activity without switching screens.
+                    </p>
+                </div>
+                <div class="hero-stat-strip">
+                    <div class="hero-stat">
+                        <span>Total Output</span>
+                        <strong id="heroPower">-- W</strong>
+                    </div>
+                    <div class="hero-stat">
+                        <span>Battery</span>
+                        <strong id="heroBattery">--%</strong>
+                    </div>
+                    <div class="hero-stat">
+                        <span>Active Ports</span>
+                        <strong id="heroActivePorts">0 / 3</strong>
+                    </div>
+                </div>
+            </section>
+
+            <div class="dashboard-grid">
+                <div class="card wide">
+                    <div class="card-header">
+                        <span>Power Output</span>
+                        <small>Current generation</small>
+                    </div>
+                    <div class="card-value" id="power">-- W</div>
+                </div>
+
+                <div class="card wide">
+                    <div class="card-header">
+                        <span>
+                            Voltage
+                            <span class="tooltip-text">Measures the electrical potential difference in the system.</span>
+                        </span>
+                        <small>System voltage</small>
+                    </div>
+                    <div class="card-value" id="voltage">-- V</div>
+                </div>
+
+                <div class="card wide">
+                    <div class="card-header">
+                        <span>
+                            Vibration Frequency
+                            <span class="tooltip-text">Indicates the oscillation rate of the piezoelectric beam.</span>
+                        </span>
+                        <small>Beam oscillation</small>
+                    </div>
+                    <div class="card-value" id="frequency">-- Hz</div>
+                </div>
+
+                <div class="card wide battery-card">
+                    <div class="battery-header">
+                        <span class="battery-icon">B</span>
+                        <div>
+                            <h4>Battery Status</h4>
+                            <small id="batteryStatus">Charging • -- V</small>
+                        </div>
+                    </div>
+                    <div class="battery-shell">
+                        <div class="battery-level" id="batteryLevel"></div>
+                        <div class="battery-text" id="batteryPercent">--%</div>
+                    </div>
+                    <div class="battery-scale">
+                        <span>0%</span>
+                        <span id="batteryHealth">Optimal</span>
+                        <span>100%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-ports" class="view">
+            <div class="section-head">
+                <div>
+                    <p class="section-kicker">Ports</p>
+                    <h2>Per-port charging availability and live output.</h2>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="card wide port-card">
+                    <div class="port-header">
+                        <h3>Port 1</h3>
+                        <span class="port-status idle" id="p1Status">--</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div>
+                            <small>Power</small>
+                            <h2 id="p1Power">-- W</h2>
+                        </div>
+                        <div>
+                            <small>Current</small>
+                            <h2 id="p1Current">-- A</h2>
+                        </div>
+                    </div>
+                    <a class="port-link" href="/port1">Open Port 1</a>
+                </div>
+
+                <div class="card wide port-card">
+                    <div class="port-header">
+                        <h3>Port 2</h3>
+                        <span class="port-status idle" id="p2Status">--</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div>
+                            <small>Power</small>
+                            <h2 id="p2Power">-- W</h2>
+                        </div>
+                        <div>
+                            <small>Current</small>
+                            <h2 id="p2Current">-- A</h2>
+                        </div>
+                    </div>
+                    <a class="port-link" href="/port2">Open Port 2</a>
+                </div>
+
+                <div class="card wide port-card">
+                    <div class="port-header">
+                        <h3>Port 3</h3>
+                        <span class="port-status idle" id="p3Status">--</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div>
+                            <small>Power</small>
+                            <h2 id="p3Power">-- W</h2>
+                        </div>
+                        <div>
+                            <small>Current</small>
+                            <h2 id="p3Current">-- A</h2>
+                        </div>
+                    </div>
+                    <a class="port-link" href="/port3">Open Port 3</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-analytics" class="view">
+            <div class="section-head">
+                <div>
+                    <p class="section-kicker">Analytics</p>
+                    <h2>Short-term performance trends.</h2>
+                </div>
+            </div>
+
+            <div class="chart-container analytics-chart">
+                <canvas id="powerChart"></canvas>
+            </div>
+            <div class="chart-container analytics-chart">
+                <canvas id="batteryChart"></canvas>
+            </div>
+        </div>
+
+        <div id="view-notifications" class="view">
+            <div class="section-head notifications-head">
+                <div>
+                    <p class="section-kicker">Notifications</p>
+                    <h2>Live system alerts and status updates.</h2>
+                    <p class="hero-copy reports-copy">
+                        Review battery warnings, disconnected ports, and source status from one dedicated panel.
+                    </p>
+                </div>
+                <span class="status-pill offline" id="alertsStatus">Monitoring</span>
+            </div>
+
+            <section class="card alerts-panel">
+                <div class="alerts-feed" id="alertsFeed">
+                    <div class="alert-item alert-item-empty">
+                        <div>
+                            <strong>No active alerts</strong>
+                            <p>The system will show warnings and notifications here.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="view-reports" class="view">
+            <div class="section-head reports-head">
+                <div>
+                    <p class="section-kicker">Reports</p>
+                    <h2>Operational summary and export tools.</h2>
+                    <p class="hero-copy reports-copy">
+                        Generate quick snapshots for battery history, port activity, and the current system report.
+                    </p>
+                </div>
+                <form class="export-form card" id="exportForm">
+                    <div class="export-field">
+                        <label for="exportType">Export</label>
+                        <select id="exportType" name="type">
+                            <option value="battery">Battery history</option>
+                            <option value="ports">Ports snapshot</option>
+                            <option value="report">System report</option>
+                        </select>
+                    </div>
+
+                    <div class="export-field">
+                        <label for="exportFormat">Format</label>
+                        <select id="exportFormat" name="format">
+                            <option value="csv">CSV</option>
+                            <option value="json">JSON</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="report-action-btn export-submit">Download</button>
+                </form>
+            </div>
+
+            <div class="reports-grid">
+                <article class="card report-stat-card">
+                    <div class="card-header">
+                        <span>Data Source</span>
+                        <small>Current feed</small>
+                    </div>
+                    <div class="card-value" id="reportDataSource">--</div>
+                </article>
+
+                <article class="card report-stat-card">
+                    <div class="card-header">
+                        <span>Average Battery</span>
+                        <small>Across recorded history</small>
+                    </div>
+                    <div class="card-value" id="reportAverageBattery">--%</div>
+                </article>
+
+                <article class="card report-stat-card">
+                    <div class="card-header">
+                        <span>Peak Port Power</span>
+                        <small>Highest active output</small>
+                    </div>
+                    <div class="card-value" id="reportPeakPortPower">-- W</div>
+                </article>
+
+                <article class="card report-stat-card">
+                    <div class="card-header">
+                        <span>Total Session Energy</span>
+                        <small>Across all ports</small>
+                    </div>
+                    <div class="card-value" id="reportTotalEnergy">-- Wh</div>
+                </article>
+            </div>
+
+            <div class="reports-layout">
+                <section class="card report-summary-card">
+                    <div class="card-header">
+                        <span>System Report</span>
+                        <small>Latest generated snapshot</small>
+                    </div>
+                    <div class="report-summary-list">
+                        <div class="report-row">
+                            <span>Generated</span>
+                            <strong id="reportGeneratedAt">--</strong>
+                        </div>
+                        <div class="report-row">
+                            <span>Active Ports</span>
+                            <strong id="reportActivePorts">0</strong>
+                        </div>
+                        <div class="report-row">
+                            <span>Connected Ports</span>
+                            <strong id="reportConnectedPorts">0</strong>
+                        </div>
+                        <div class="report-row">
+                            <span>Peak Battery</span>
+                            <strong id="reportPeakBattery">--%</strong>
+                        </div>
+                        <div class="report-row">
+                            <span>Lowest Battery</span>
+                            <strong id="reportLowestBattery">--%</strong>
+                        </div>
+                        <div class="report-row">
+                            <span>History Points</span>
+                            <strong id="reportHistoryPoints">0</strong>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card report-ports-card">
+                    <div class="card-header">
+                        <span>Port Snapshot</span>
+                        <small>Current report state by port</small>
+                    </div>
+                    <div class="report-port-list" id="reportPortList">
+                        <div class="report-port-item">
+                            <span>Waiting for report data.</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <audio id="lowBatterySound">
+        <source src="{{ url_for('static', filename='alert.mp3') }}" type="audio/mpeg">
+    </audio>
+
+    {% include "partials/settings_modal.html" %}
+    <div class="toast-stack" id="toastStack"></div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

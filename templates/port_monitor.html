@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ port_name }} Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="port-page" data-port-id="{{ port_id }}" data-port-name="{{ port_name }}">
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo">P</div>
+                <div class="brand-text">
+                    <h1>{{ port_name }}</h1>
+                    <p>Charging Port Monitor</p>
+                </div>
+            </div>
+
+            <div class="topbar-actions">
+                <button class="sidebar-action theme-toggle" id="themeToggle" type="button">Light Mode</button>
+                <a href="/" class="back-btn">Back</a>
+            </div>
+        </header>
+
+        <main class="port-dashboard">
+            <section class="port-hero card">
+                <div>
+                    <p class="port-eyebrow">Live Port Status</p>
+                    <div class="port-hero-status-row">
+                        <h2 id="portStatusLarge">--</h2>
+                        <span class="port-badge" id="connectionBadge">--</span>
+                    </div>
+                    <p class="port-hero-copy" id="portSummary">Waiting for live data.</p>
+                </div>
+
+                <div class="port-controls-panel">
+                    <div class="card-header">
+                        <span>Controls</span>
+                        <small>Manual + Auto</small>
+                    </div>
+                    <div class="port-controls">
+                        <button id="startButton" class="settings-btn">Start</button>
+                        <button id="stopButton" class="settings-btn close">Stop</button>
+                        <button id="manualButton" class="settings-btn">Manual: ON</button>
+                    </div>
+                    <p class="mode-text">Mode: <span id="modeText">--</span></p>
+                </div>
+            </section>
+
+            <section class="port-metrics-grid">
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Power</span>
+                        <small>Instant output</small>
+                    </div>
+                    <div class="card-value" id="portPowerValue">0.00 W</div>
+                </article>
+
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Current</span>
+                        <small>Live draw</small>
+                    </div>
+                    <div class="card-value" id="portCurrentValue">0.00 A</div>
+                </article>
+
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Voltage</span>
+                        <small>Port level</small>
+                    </div>
+                    <div class="card-value" id="portVoltageValue">0.00 V</div>
+                </article>
+
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Energy</span>
+                        <small>Session total</small>
+                    </div>
+                    <div class="card-value" id="portEnergyValue">0.00 Wh</div>
+                </article>
+
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Session</span>
+                        <small>Elapsed time</small>
+                    </div>
+                    <div class="card-value" id="sessionDurationValue">00:00:00</div>
+                </article>
+
+                <article class="card port-metric-card">
+                    <div class="card-header">
+                        <span>Data Source</span>
+                        <small>Current feed</small>
+                    </div>
+                    <div class="card-value" id="dataSourceValue">--</div>
+                </article>
+            </section>
+
+            <section class="chart-container port-chart-card">
+                <div class="chart-header">
+                    <div>
+                        <h3>{{ port_name }} Output</h3>
+                        <p id="chartSubtitle">Power history over the last 30 samples.</p>
+                    </div>
+                </div>
+                <div class="chart-frame">
+                    <canvas id="portPowerChart"></canvas>
+                    <div class="chart-empty-state" id="chartEmptyState">
+                        Waiting for charging activity to generate power data.
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="toast-stack" id="toastStack"></div>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/port_monitor.js') }}"></script>
+</body>
+</html>
