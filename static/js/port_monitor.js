@@ -17,53 +17,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const portEnergyValueEl = document.getElementById("portEnergyValue");
     const sessionDurationValueEl = document.getElementById("sessionDurationValue");
     const dataSourceValueEl = document.getElementById("dataSourceValue");
-    const chartSubtitleEl = document.getElementById("chartSubtitle");
-    const chartEmptyStateEl = document.getElementById("chartEmptyState");
     const startButton = document.getElementById("startButton");
     const stopButton = document.getElementById("stopButton");
     const manualButton = document.getElementById("manualButton");
     const toastStack = document.getElementById("toastStack");
 
-    const powerData = {
-        labels: [],
-        datasets: [{
-            label: `${portName} Power (W)`,
-            data: [],
-            borderColor: "#22d3ee",
-            backgroundColor: "rgba(34, 211, 238, 0.18)",
-            borderWidth: 2,
-            tension: 0.35,
-            fill: true
-        }]
-    };
-
-    const chartAvailable = typeof Chart !== "undefined";
-    const powerChartCanvas = document.getElementById("portPowerChart");
-    let powerChart = null;
-
-    if (chartAvailable && powerChartCanvas) {
-        powerChart = new Chart(powerChartCanvas.getContext("2d"), {
-            type: "line",
-            data: powerData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { color: "white" } }
-                },
-                scales: {
-                    x: { ticks: { color: "#94a3b8" } },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: "#94a3b8" }
-                    }
-                }
-            }
-        });
-    }
-
     let manualEnabled = true;
-    let lastSample = null;
     let alertsEnabled = true;
     const seenNotifications = new Set();
 
@@ -135,37 +94,6 @@ document.addEventListener("DOMContentLoaded", () => {
         dataSourceValueEl.textContent = isEsp32Online ? "ESP32" : "Simulated";
     }
 
-    function updateChartState(port) {
-        const hasOutput = powerData.datasets[0].data.some((value) => Number(value) > 0);
-        const isCharging = port.status === "CHARGING";
-
-        chartEmptyStateEl.style.display = hasOutput || isCharging ? "none" : "flex";
-        chartSubtitleEl.textContent = isCharging
-            ? "Live power history while charging."
-            : "No active charging session yet. The graph will move once output rises above 0 W.";
-    }
-
-    function appendChartPoint(port) {
-        const sample = `${port.status}|${Number(port.power || 0).toFixed(2)}|${Number(port.current || 0).toFixed(2)}`;
-        if (sample === lastSample) {
-            return;
-        }
-
-        lastSample = sample;
-
-        powerData.labels.push(new Date().toLocaleTimeString());
-        powerData.datasets[0].data.push(Number(port.power || 0));
-
-        if (powerData.labels.length > 30) {
-            powerData.labels.shift();
-            powerData.datasets[0].data.shift();
-        }
-
-        if (powerChart) {
-            powerChart.update();
-        }
-    }
-
     function renderManualUI() {
         manualButton.textContent = manualEnabled ? "Manual: ON" : "Manual: OFF";
         modeTextEl.textContent = manualEnabled
@@ -229,8 +157,6 @@ document.addEventListener("DOMContentLoaded", () => {
         renderManualUI();
         updateSummary(port, !!data.esp32_online);
         updateMetricCards(port, !!data.esp32_online);
-        appendChartPoint(port);
-        updateChartState(port);
 
         if (!port.connected) {
             pushToast("warning", `${portName} disconnected`, "No device is connected to this port.", `${portId}-disconnected`);
