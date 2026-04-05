@@ -11,7 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
     sidebar.classList.toggle("is-collapsed", collapsed);
     sidebarToggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
     sidebarToggle.setAttribute("title", collapsed ? "Expand sidebar" : "Collapse sidebar");
-    sidebarToggle.querySelector(".sidebar-toggle-icon").textContent = collapsed ? ">" : "<";
   }
 
   const savedState = localStorage.getItem(storageKey);

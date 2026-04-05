@@ -7,6 +7,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyTheme(theme) {
     document.body.setAttribute("data-theme", theme);
+    const lightModeCheckbox = document.getElementById("setLightMode");
+    if (lightModeCheckbox) {
+      lightModeCheckbox.checked = theme === "light";
+    }
     if (themeToggle) {
       const label = theme === "light" ? "Dark Mode" : "Light Mode";
       if (themeToggleLabel) {
@@ -17,13 +21,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  window.getAppTheme = () => document.body.getAttribute("data-theme") || savedTheme;
+  window.setAppTheme = (theme) => {
+    localStorage.setItem(storageKey, theme);
+    applyTheme(theme);
+  };
+
   applyTheme(savedTheme);
 
   if (themeToggle) {
     themeToggle.addEventListener("click", () => {
       const nextTheme = document.body.getAttribute("data-theme") === "light" ? "dark" : "light";
-      localStorage.setItem(storageKey, nextTheme);
-      applyTheme(nextTheme);
+      window.setAppTheme(nextTheme);
     });
   }
 });

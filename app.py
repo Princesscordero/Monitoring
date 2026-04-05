@@ -53,6 +53,7 @@ ADMIN_PASSWORD_HASH = (
 battery = 50.0
 charging = False
 battery_history = []
+system_history = []
 
 # ==========================
 # REAL-TIME UPDATE INTERVALS (seconds)
@@ -307,6 +308,22 @@ def get_data_source_label():
     return "ESP32 Live" if esp32_online else "Simulation"
 
 
+def append_system_history(power_value, voltage_value, frequency_value):
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    entry = {
+        "time": timestamp,
+        "power": round(power_value, 2),
+        "voltage": round(voltage_value, 2),
+        "frequency": round(frequency_value, 1),
+        "battery": round(battery, 1)
+    }
+
+    if not system_history or any(system_history[-1][key] != entry[key] for key in ("power", "voltage", "frequency", "battery")):
+        system_history.append(entry)
+        if len(system_history) > 180:
+            del system_history[:-180]
+
+
 def build_report_summary():
     active_ports = [
         pid for pid, port in ports.items()
@@ -325,6 +342,10 @@ def build_report_summary():
     )
     peak_port_power = max((port.get("power", 0.0) for port in ports.values()), default=0.0)
     total_session_energy = round(sum(port.get("session_wh", 0.0) for port in ports.values()), 2)
+    recent_power_points = system_history[-12:]
+    peak_output_entry = max(system_history, key=lambda row: row["power"], default=None)
+    battery_start = battery_history[0]["battery"] if battery_history else round(battery, 1)
+    battery_end = battery_history[-1]["battery"] if battery_history else round(battery, 1)
 
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -346,6 +367,13 @@ def build_report_summary():
             "lowest_battery": lowest_battery,
             "history_points": len(battery_history)
         },
+        "graph_insights": {
+            "power_samples": len(system_history),
+            "battery_change": round(battery_end - battery_start, 1),
+            "peak_output": peak_output_entry["power"] if peak_output_entry else round(system_cache.get("power", 0.0), 2),
+            "peak_output_time": peak_output_entry["time"] if peak_output_entry else datetime.now().strftime("%H:%M:%S"),
+            "recent_power_points": recent_power_points
+        },
         "ports": {
             pid: {
                 "connected": port.get("connected", False),
@@ -359,6 +387,156 @@ def build_report_summary():
             for pid, port in ports.items()
         }
     }
+
+
+def build_readable_report_text(report):
+    lines = [
+        "ENERGY HARVESTING SYSTEM REPORT",
+        "=" * 32,
+        "",
+        f"Generated: {report['generated_at']}",
+        f"Data Source: {report['data_source']}",
+        "",
+        "SYSTEM OVERVIEW",
+        "-" * 15,
+        f"Power Output: {report['system']['power']:.2f} W",
+        f"Voltage: {report['system']['voltage']:.2f} V",
+        f"Vibration Frequency: {report['system']['frequency']:.1f} Hz",
+        f"Battery Level: {report['system']['battery']:.1f}%",
+        f"Charging State: {'Charging' if report['system']['charging'] else 'Idle'}",
+        "",
+        "HIGHLIGHTS",
+        "-" * 10,
+        f"Active Ports: {report['highlights']['active_ports']}",
+        f"Connected Ports: {report['highlights']['connected_ports']}",
+        f"Peak Port Power: {report['highlights']['peak_port_power']:.2f} W",
+        f"Total Session Energy: {report['highlights']['total_session_energy']:.2f} Wh",
+        f"Average Battery: {report['highlights']['average_battery']:.1f}%",
+        f"Peak Battery: {report['highlights']['peak_battery']:.1f}%",
+        f"Lowest Battery: {report['highlights']['lowest_battery']:.1f}%",
+        f"Battery History Points: {report['highlights']['history_points']}",
+        "",
+        "PORT STATUS",
+        "-" * 11,
+    ]
+
+    for port_id, port in report["ports"].items():
+        lines.extend([
+            f"{port_id.upper()}",
+            f"  Connection: {'Connected' if port['connected'] else 'Disconnected'}",
+            f"  Status: {port['status']}",
+            f"  Power: {port['power']:.2f} W",
+            f"  Current: {port['current']:.2f} A",
+            f"  Voltage: {port['voltage']:.2f} V",
+            f"  Session Energy: {port['session_wh']:.2f} Wh",
+            f"  Manual Mode: {'Enabled' if port['manual_enabled'] else 'Disabled'}",
+            "",
+        ])
+
+    graph = report.get("graph_insights", {})
+    if graph:
+        lines.extend([
+            "GRAPH INSIGHTS",
+            "-" * 14,
+            f"Power Samples Captured: {graph.get('power_samples', 0)}",
+            f"Battery Change Over History: {graph.get('battery_change', 0):.1f}%",
+            f"Peak Output Recorded: {graph.get('peak_output', 0):.2f} W at {graph.get('peak_output_time', '--:--:--')}",
+            "",
+            "RECENT POWER TREND",
+            "-" * 18,
+        ])
+
+        recent_points = graph.get("recent_power_points", [])
+        if recent_points:
+            for point in recent_points:
+                lines.append(
+                    f"{point['time']}  |  {point['power']:.2f} W  |  {point['voltage']:.2f} V  |  {point['frequency']:.1f} Hz  |  {point['battery']:.1f}%"
+                )
+        else:
+            lines.append("No recent power history available yet.")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _pdf_escape(text):
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def build_simple_pdf(title, lines):
+    page_width = 612
+    page_height = 792
+    left_margin = 54
+    top_margin = 64
+    line_height = 16
+    max_lines_per_page = 42
+
+    pages = [lines[i:i + max_lines_per_page] for i in range(0, len(lines), max_lines_per_page)] or [[]]
+    objects = []
+
+    def add_object(data):
+        objects.append(data)
+        return len(objects)
+
+    font_id = add_object("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    page_ids = []
+    content_ids = []
+
+    for page_lines in pages:
+        stream_lines = [
+            "BT",
+            f"/F1 18 Tf {left_margin} {page_height - top_margin} Td ({_pdf_escape(title)}) Tj",
+            "/F1 11 Tf",
+        ]
+
+        current_y = page_height - top_margin - 28
+        for line in page_lines:
+            safe_line = _pdf_escape(str(line))
+            stream_lines.append(f"1 0 0 1 {left_margin} {current_y} Tm ({safe_line}) Tj")
+            current_y -= line_height
+
+        stream_lines.append("ET")
+        stream = "\n".join(stream_lines).encode("latin-1", "replace")
+        content_id = add_object(
+            f"<< /Length {len(stream)} >>\nstream\n{stream.decode('latin-1')}\nendstream"
+        )
+        content_ids.append(content_id)
+        page_ids.append(None)
+
+    pages_id = add_object("")
+
+    for idx, content_id in enumerate(content_ids):
+        page_id = add_object(
+            f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {page_width} {page_height}] "
+            f"/Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>"
+        )
+        page_ids[idx] = page_id
+
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    objects[pages_id - 1] = f"<< /Type /Pages /Count {len(page_ids)} /Kids [{kids}] >>"
+    catalog_id = add_object(f"<< /Type /Catalog /Pages {pages_id} 0 R >>")
+
+    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for obj_id, obj_data in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{obj_id} 0 obj\n".encode("latin-1"))
+        pdf.extend(obj_data.encode("latin-1"))
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("latin-1"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("latin-1"))
+
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF"
+        ).encode("latin-1")
+    )
+    return bytes(pdf)
 
 # ==========================
 # AUTH ROUTES
@@ -712,6 +890,12 @@ def data():
                 float(live["ports"][pid]["power"]) for pid in ["p1", "p2", "p3"]
             )
 
+        append_system_history(
+            system_cache["power"],
+            system_cache["voltage"],
+            system_cache["frequency"]
+        )
+
         # update ports from ESP32
         for pid in ["p1", "p2", "p3"]:
             p = ports[pid]
@@ -765,6 +949,7 @@ def data():
     power = system_cache["power"]
     voltage = system_cache["voltage"]
     frequency = system_cache["frequency"]
+    append_system_history(power, voltage, frequency)
 
     # 2) BATTERY (timed)
     if now - system_cache["last_battery_update"] >= battery_interval:
@@ -881,6 +1066,10 @@ def export_csv():
     if export_type == "report":
         if export_format == "json":
             return redirect(url_for("export_report_json"))
+        if export_format == "pdf":
+            return redirect(url_for("export_report_pdf"))
+        if export_format == "txt":
+            return redirect(url_for("export_report_text"))
         return redirect(url_for("export_report_csv"))
 
     return redirect(url_for("export_battery_history"))
@@ -951,6 +1140,32 @@ def export_report_json():
     response = make_response(json.dumps(report, indent=2))
     response.headers["Content-Disposition"] = "attachment; filename=energy_report.json"
     response.headers["Content-Type"] = "application/json"
+    return response
+
+
+@app.route("/export/report.txt")
+def export_report_text():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    report = build_report_summary()
+    response = make_response(build_readable_report_text(report))
+    response.headers["Content-Disposition"] = "attachment; filename=energy_report.txt"
+    response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return response
+
+
+@app.route("/export/report.pdf")
+def export_report_pdf():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    report = build_report_summary()
+    lines = build_readable_report_text(report).splitlines()
+    pdf_bytes = build_simple_pdf("Energy Harvesting System Report", lines[2:])
+    response = make_response(pdf_bytes)
+    response.headers["Content-Disposition"] = "attachment; filename=energy_report.pdf"
+    response.headers["Content-Type"] = "application/pdf"
     return response
 
 

@@ -245,12 +245,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const reportSelected = exportType.value === "report";
     const jsonOption = Array.from(exportFormat.options).find((option) => option.value === "json");
+    const txtOption = Array.from(exportFormat.options).find((option) => option.value === "txt");
+    const pdfOption = Array.from(exportFormat.options).find((option) => option.value === "pdf");
 
     if (jsonOption) {
       jsonOption.disabled = !reportSelected;
     }
 
-    if (!reportSelected && exportFormat.value === "json") {
+    if (txtOption) {
+      txtOption.disabled = !reportSelected;
+    }
+
+    if (pdfOption) {
+      pdfOption.disabled = !reportSelected;
+    }
+
+    if (!reportSelected && ["json", "txt", "pdf"].includes(exportFormat.value)) {
       exportFormat.value = "csv";
     }
   }
@@ -436,31 +446,48 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await fetch("/api/settings");
     const s = await res.json();
 
-    document.getElementById("setLowBattery").value = s.low_battery_cutoff;
-    document.getElementById("setMaxSession").value = s.max_session_minutes;
-    document.getElementById("setAutoStart").checked = s.auto_start_on_connect;
-    document.getElementById("setEnableEsp32").checked = !!s.enable_esp32;
-    document.getElementById("setEsp32Ttl").value = s.esp32_ttl;
-    document.getElementById("setMetricsInterval").value = s.metrics_interval;
-    document.getElementById("setBatteryInterval").value = s.battery_interval;
-    document.getElementById("setPortInterval").value = s.port_interval;
-    document.getElementById("setConnectionToggleInterval").value = s.connection_toggle_interval ?? 30;
-    document.getElementById("setAlertsEnabled").checked = !!s.alerts_enabled;
+    const setIfPresent = (id, value, prop = "value") => {
+      const element = document.getElementById(id);
+      if (!element) return;
+      element[prop] = value;
+    };
+
+    setIfPresent("setLowBattery", s.low_battery_cutoff);
+    setIfPresent("setMaxSession", s.max_session_minutes);
+    setIfPresent("setAutoStart", s.auto_start_on_connect, "checked");
+    setIfPresent("setEnableEsp32", !!s.enable_esp32, "checked");
+    setIfPresent("setEsp32Ttl", s.esp32_ttl);
+    setIfPresent("setMetricsInterval", s.metrics_interval);
+    setIfPresent("setBatteryInterval", s.battery_interval);
+    setIfPresent("setPortInterval", s.port_interval);
+    setIfPresent("setConnectionToggleInterval", s.connection_toggle_interval ?? 30);
+    setIfPresent("setAlertsEnabled", !!s.alerts_enabled, "checked");
+    setIfPresent("setLightMode", (window.getAppTheme?.() || "dark") === "light", "checked");
     alertsEnabled = !!s.alerts_enabled;
   }
 
   async function saveSettings() {
+    const readNumber = (id, fallback) => {
+      const element = document.getElementById(id);
+      return element ? parseInt(element.value, 10) : fallback;
+    };
+
+    const readChecked = (id, fallback) => {
+      const element = document.getElementById(id);
+      return element ? element.checked : fallback;
+    };
+
     const payload = {
-      low_battery_cutoff: parseInt(document.getElementById("setLowBattery").value),
-      max_session_minutes: parseInt(document.getElementById("setMaxSession").value),
-      auto_start_on_connect: document.getElementById("setAutoStart").checked,
-      enable_esp32: document.getElementById("setEnableEsp32").checked,
-      esp32_ttl: parseInt(document.getElementById("setEsp32Ttl").value),
-      metrics_interval: parseInt(document.getElementById("setMetricsInterval").value),
-      battery_interval: parseInt(document.getElementById("setBatteryInterval").value),
-      port_interval: parseInt(document.getElementById("setPortInterval").value),
-      connection_toggle_interval: parseInt(document.getElementById("setConnectionToggleInterval").value),
-      alerts_enabled: document.getElementById("setAlertsEnabled").checked
+      low_battery_cutoff: readNumber("setLowBattery", 20),
+      max_session_minutes: readNumber("setMaxSession", 60),
+      auto_start_on_connect: readChecked("setAutoStart", false),
+      enable_esp32: readChecked("setEnableEsp32", true),
+      esp32_ttl: readNumber("setEsp32Ttl", 6),
+      metrics_interval: readNumber("setMetricsInterval", 5),
+      battery_interval: readNumber("setBatteryInterval", 5),
+      port_interval: readNumber("setPortInterval", 2),
+      connection_toggle_interval: readNumber("setConnectionToggleInterval", 30),
+      alerts_enabled: readChecked("setAlertsEnabled", true)
     };
 
     await fetch("/api/settings", {
@@ -468,6 +495,9 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: withCsrfHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
+
+    const selectedTheme = readChecked("setLightMode", false) ? "light" : "dark";
+    window.setAppTheme?.(selectedTheme);
 
     alert("Settings saved!");
     alertsEnabled = payload.alerts_enabled;
