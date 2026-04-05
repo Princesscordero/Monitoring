@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{{ port_name }} Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="port-page" data-port-id="{{ port_id }}" data-port-name="{{ port_name }}">
@@ -97,6 +98,21 @@
                     </div>
                     <div class="card-value" id="dataSourceValue">--</div>
                 </article>
+            </section>
+
+            <section class="chart-container port-chart-card">
+                <div class="chart-header">
+                    <div>
+                        <h3>{{ port_name }} Output</h3>
+                        <p id="chartSubtitle">Power history over the last 30 samples.</p>
+                    </div>
+                </div>
+                <div class="chart-frame">
+                    <canvas id="portPowerChart"></canvas>
+                    <div class="chart-empty-state" id="chartEmptyState">
+                        Waiting for charging activity to generate power data.
+                    </div>
+                </div>
             </section>
         </main>
     </div>
