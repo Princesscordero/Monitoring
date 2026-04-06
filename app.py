@@ -538,6 +538,54 @@ def build_simple_pdf(title, lines):
     )
     return bytes(pdf)
 
+
+def build_battery_history_text():
+    lines = [
+        "BATTERY HISTORY REPORT",
+        "=" * 22,
+        "",
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Recorded Points: {len(battery_history)}",
+        "",
+        "TIMELINE",
+        "-" * 8,
+    ]
+
+    if battery_history:
+        for row in battery_history:
+            lines.append(f"{row['time']}  |  {row['battery']:.1f}%")
+    else:
+        lines.append("No battery history available yet.")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def build_ports_snapshot_text():
+    lines = [
+        "PORT SNAPSHOT REPORT",
+        "=" * 20,
+        "",
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "PORT STATUS",
+        "-" * 11,
+    ]
+
+    for port_id, port in ports.items():
+        lines.extend([
+            f"{port_id.upper()}",
+            f"  Connection: {'Connected' if port.get('connected') else 'Disconnected'}",
+            f"  Status: {port.get('status', 'IDLE')}",
+            f"  Power: {round(port.get('power', 0.0), 2):.2f} W",
+            f"  Current: {round(port.get('current', 0.0), 2):.2f} A",
+            f"  Voltage: {round(port.get('voltage', 0.0), 2):.2f} V",
+            f"  Session Energy: {round(port.get('session_wh', 0.0), 2):.2f} Wh",
+            f"  Manual Mode: {'Enabled' if port.get('manual_enabled') else 'Disabled'}",
+            "",
+        ])
+
+    return "\n".join(lines).rstrip() + "\n"
+
 # ==========================
 # AUTH ROUTES
 # ==========================
@@ -1058,9 +1106,21 @@ def export_csv():
     export_format = request.args.get("format", "csv")
 
     if export_type == "battery":
+        if export_format == "json":
+            return redirect(url_for("export_battery_history_json"))
+        if export_format == "pdf":
+            return redirect(url_for("export_battery_history_pdf"))
+        if export_format == "txt":
+            return redirect(url_for("export_battery_history_text"))
         return redirect(url_for("export_battery_history"))
 
     if export_type == "ports":
+        if export_format == "json":
+            return redirect(url_for("export_ports_snapshot_json"))
+        if export_format == "pdf":
+            return redirect(url_for("export_ports_snapshot_pdf"))
+        if export_format == "txt":
+            return redirect(url_for("export_ports_snapshot_text"))
         return redirect(url_for("export_ports_snapshot"))
 
     if export_type == "report":
@@ -1091,6 +1151,44 @@ def export_battery_history():
     response.headers["Content-Disposition"] = "attachment; filename=battery_history.csv"
     response.headers["Content-Type"] = "text/csv"
 
+    return response
+
+
+@app.route("/export/battery-history.json")
+def export_battery_history_json():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    response = make_response(json.dumps({
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "points": battery_history
+    }, indent=2))
+    response.headers["Content-Disposition"] = "attachment; filename=battery_history.json"
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+@app.route("/export/battery-history.txt")
+def export_battery_history_text():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    response = make_response(build_battery_history_text())
+    response.headers["Content-Disposition"] = "attachment; filename=battery_history.txt"
+    response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return response
+
+
+@app.route("/export/battery-history.pdf")
+def export_battery_history_pdf():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    lines = build_battery_history_text().splitlines()[2:]
+    pdf_bytes = build_simple_pdf("Battery History Report", lines)
+    response = make_response(pdf_bytes)
+    response.headers["Content-Disposition"] = "attachment; filename=battery_history.pdf"
+    response.headers["Content-Type"] = "application/pdf"
     return response
 
 
@@ -1128,6 +1226,56 @@ def export_ports_snapshot():
     response = make_response(output.getvalue())
     response.headers["Content-Disposition"] = "attachment; filename=ports_snapshot.csv"
     response.headers["Content-Type"] = "text/csv"
+    return response
+
+
+@app.route("/export/ports.json")
+def export_ports_snapshot_json():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    payload = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "ports": {
+            port_id: {
+                "connected": port.get("connected"),
+                "status": port.get("status"),
+                "power": round(port.get("power", 0.0), 2),
+                "current": round(port.get("current", 0.0), 2),
+                "voltage": round(port.get("voltage", 0.0), 2),
+                "session_wh": round(port.get("session_wh", 0.0), 2),
+                "manual_enabled": port.get("manual_enabled")
+            }
+            for port_id, port in ports.items()
+        }
+    }
+    response = make_response(json.dumps(payload, indent=2))
+    response.headers["Content-Disposition"] = "attachment; filename=ports_snapshot.json"
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+@app.route("/export/ports.txt")
+def export_ports_snapshot_text():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    response = make_response(build_ports_snapshot_text())
+    response.headers["Content-Disposition"] = "attachment; filename=ports_snapshot.txt"
+    response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return response
+
+
+@app.route("/export/ports.pdf")
+def export_ports_snapshot_pdf():
+    if not is_admin_logged_in():
+        return redirect(url_for("login"))
+
+    lines = build_ports_snapshot_text().splitlines()[2:]
+    pdf_bytes = build_simple_pdf("Port Snapshot Report", lines)
+    response = make_response(pdf_bytes)
+    response.headers["Content-Disposition"] = "attachment; filename=ports_snapshot.pdf"
+    response.headers["Content-Type"] = "application/pdf"
     return response
 
 

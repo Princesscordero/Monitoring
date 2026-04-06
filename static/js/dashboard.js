@@ -242,27 +242,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function syncExportFormatOptions() {
     if (!exportType || !exportFormat) return;
+  }
 
-    const reportSelected = exportType.value === "report";
-    const jsonOption = Array.from(exportFormat.options).find((option) => option.value === "json");
-    const txtOption = Array.from(exportFormat.options).find((option) => option.value === "txt");
-    const pdfOption = Array.from(exportFormat.options).find((option) => option.value === "pdf");
+  function getExportUrl(type, format) {
+    const exportMap = {
+      battery: {
+        csv: "/export/battery-history.csv",
+        json: "/export/battery-history.json",
+        txt: "/export/battery-history.txt",
+        pdf: "/export/battery-history.pdf"
+      },
+      ports: {
+        csv: "/export/ports.csv",
+        json: "/export/ports.json",
+        txt: "/export/ports.txt",
+        pdf: "/export/ports.pdf"
+      },
+      report: {
+        csv: "/export/report.csv",
+        json: "/export/report.json",
+        txt: "/export/report.txt",
+        pdf: "/export/report.pdf"
+      }
+    };
 
-    if (jsonOption) {
-      jsonOption.disabled = !reportSelected;
-    }
-
-    if (txtOption) {
-      txtOption.disabled = !reportSelected;
-    }
-
-    if (pdfOption) {
-      pdfOption.disabled = !reportSelected;
-    }
-
-    if (!reportSelected && ["json", "txt", "pdf"].includes(exportFormat.value)) {
-      exportFormat.value = "csv";
-    }
+    return exportMap[type]?.[format] || `/export?type=${encodeURIComponent(type)}&format=${encodeURIComponent(format)}`;
   }
 
   function setPort(prefix, port) {
@@ -551,7 +555,7 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       const type = exportType ? exportType.value : "battery";
       const format = exportFormat ? exportFormat.value : "csv";
-      window.location.href = `/export?type=${encodeURIComponent(type)}&format=${encodeURIComponent(format)}`;
+      window.location.href = getExportUrl(type, format);
     });
   }
 
