@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Admin Login - Energy Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+    <div class="login-shell">
+        <section class="login-showcase">
+            <div class="login-showcase-inner">
+                <div class="login-logo">E</div>
+                <p class="section-kicker">Energy Monitor</p>
+                <h1>Control generation, charging, alerts, and reporting from one place.</h1>
+                <p class="login-copy">
+                    Sign in to manage port activity, review notifications, tune system behavior, and export operational reports.
+                </p>
+
+                <div class="login-highlights">
+                    <div class="login-highlight">
+                        <strong>Live Status</strong>
+                        <span>Track battery, voltage, vibration, and power in real time.</span>
+                    </div>
+                    <div class="login-highlight">
+                        <strong>Port Control</strong>
+                        <span>Start, stop, and monitor individual charging ports.</span>
+                    </div>
+                    <div class="login-highlight">
+                        <strong>Reports</strong>
+                        <span>Export battery history, port snapshots, and system summaries.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <form method="POST" class="login-card" id="loginForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="login-card-header">
+                <p class="section-kicker">Admin Access</p>
+                <h2>Sign in</h2>
+                <p>Use your administrator credentials to open the monitoring dashboard.</p>
+            </div>
+
+            {% if google_login_enabled %}
+                <a href="{{ url_for('google_login') }}" class="login-google-btn">Continue with Google</a>
+                <div class="login-divider"><span>or sign in with admin credentials</span></div>
+            {% endif %}
+
+            <div class="login-form-grid">
+                <label class="login-field">
+                    <span>Username</span>
+                    <input type="text" name="username" placeholder="Enter username" required>
+                </label>
+
+                <label class="login-field">
+                    <span>Password</span>
+                    <input type="password" name="password" placeholder="Enter password" required>
+                </label>
+            </div>
+
+            {% if recaptcha_site_key %}
+                <div class="login-recaptcha">
+                    <div
+                        class="g-recaptcha"
+                        data-sitekey="{{ recaptcha_site_key }}"
+                        data-callback="onRecaptchaSuccess"
+                        data-expired-callback="onRecaptchaExpired"
+                        data-error-callback="onRecaptchaExpired"
+                    ></div>
+                </div>
+                <p class="login-recaptcha-note" id="recaptchaStatus">Complete the reCAPTCHA before signing in.</p>
+            {% endif %}
+
+            <button
+                type="submit"
+                id="loginSubmitButton"
+                {% if recaptcha_site_key %}disabled aria-disabled="true"{% endif %}
+            >
+                Sign in
+            </button>
+
+            {% if error %}
+                <div class="login-error">{{ error }}</div>
+            {% endif %}
+        </form>
+    </div>
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+    {% if recaptcha_site_key %}
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    {% endif %}
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

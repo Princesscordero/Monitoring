@@ -1,0 +1,114 @@
+<div id="settingsModal" class="settings-modal hidden">
+  <div class="settings-panel">
+    <div class="settings-header">
+      <div>
+        <p class="settings-kicker">Control Center</p>
+        <h3>System Settings</h3>
+        <p class="settings-intro">Adjust charging behavior, live data priority, simulation timing, alerts, and appearance from one place.</p>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-head">
+        <h4>Charging Rules</h4>
+        <p>Define when charging is allowed and how long sessions can run.</p>
+      </div>
+
+      <div class="settings-grid">
+        <div class="settings-group">
+          <label for="setLowBattery">Low Battery Cutoff (%)</label>
+          <p class="settings-help">Charging pauses when battery level drops below this reserve threshold.</p>
+          <input type="number" id="setLowBattery" min="5" max="50" value="20">
+        </div>
+
+        <div class="settings-group">
+          <label for="setMaxSession">Max Session (minutes)</label>
+          <p class="settings-help">Sets the longest allowed charging session before an automatic stop.</p>
+          <input type="number" id="setMaxSession" min="5" max="180" value="60">
+        </div>
+      </div>
+
+      <div class="settings-group settings-toggle-card">
+        <label class="checkbox">
+          <input type="checkbox" id="setAutoStart">
+          <span>
+            <strong>Auto start on connect</strong>
+            <small>Begin charging automatically when a device is detected and conditions are safe.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-head">
+        <h4>Simulation Timing</h4>
+        <p>Control how often simulated values update across the system.</p>
+      </div>
+
+      <div class="settings-grid">
+        <div class="settings-group">
+          <label for="setMetricsInterval">System Metrics Interval (seconds)</label>
+          <p class="settings-help">Refresh rate for dashboard-wide output, voltage, and vibration values.</p>
+          <input type="number" id="setMetricsInterval" min="1" max="30" value="5">
+        </div>
+
+        <div class="settings-group">
+          <label for="setBatteryInterval">Battery Interval (seconds)</label>
+          <p class="settings-help">How often the battery state recalculates during simulation.</p>
+          <input type="number" id="setBatteryInterval" min="1" max="30" value="5">
+        </div>
+
+        <div class="settings-group">
+          <label for="setPortInterval">Port Electrical Interval (seconds)</label>
+          <p class="settings-help">Refresh rate for per-port power, current, and voltage values.</p>
+          <input type="number" id="setPortInterval" min="1" max="20" value="2">
+        </div>
+
+        <div class="settings-group">
+          <label for="setConnectionToggleInterval">Device Toggle Interval (seconds)</label>
+          <p class="settings-help">How often the simulated device connection state can change.</p>
+          <input type="number" id="setConnectionToggleInterval" min="5" max="120" value="30">
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-head">
+        <h4>Notifications</h4>
+        <p>Control whether the dashboard surfaces warnings and status toasts.</p>
+      </div>
+
+      <div class="settings-group settings-toggle-card">
+        <label class="checkbox">
+          <input type="checkbox" id="setAlertsEnabled">
+          <span>
+            <strong>Enable alerts and notifications</strong>
+            <small>Show warning states, low-battery notices, and live event toasts.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-head">
+        <h4>Appearance</h4>
+        <p>Adjust how the dashboard looks while keeping the same live data behavior.</p>
+      </div>
+
+      <div class="settings-group settings-toggle-card">
+        <label class="checkbox">
+          <input type="checkbox" id="setLightMode">
+          <span>
+            <strong>Use light mode</strong>
+            <small>Switch the dashboard to the brighter visual theme.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-buttons">
+      <button type="button" class="settings-btn close" id="closeSettingsBtn">Close</button>
+      <button type="button" class="settings-btn" id="saveSettingsBtn">Save Changes</button>
+    </div>
+  </div>
+</div>
