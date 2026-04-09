@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Energy Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+    <div class="login-shell login-shell-simple">
+        <section class="login-card forgot-password-card">
+            <div class="login-card-header">
+                <p class="section-kicker">Account Access</p>
+                <h2>Sign up</h2>
+                <p>
+                    New accounts are created by the administrator for this monitoring system.
+                    You can request access or go back and sign in with Google if your email is already approved.
+                </p>
+            </div>
+
+            <div class="forgot-password-note">
+                Contact your administrator to register your email address and enable dashboard access.
+            </div>
+
+            <a href="{{ url_for('login') }}" class="login-google-btn forgot-password-back">
+                Back to login
+            </a>
+        </section>
+    </div>
+</body>
+</html>

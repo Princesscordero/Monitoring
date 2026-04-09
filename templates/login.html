@@ -40,18 +40,13 @@
             <div class="login-card-header">
                 <p class="section-kicker">Admin Access</p>
                 <h2>Sign in</h2>
-                <p>Use your administrator credentials to open the monitoring dashboard.</p>
+                <p>Use your email and password to open the monitoring dashboard.</p>
             </div>
-
-            {% if google_login_enabled %}
-                <a href="{{ url_for('google_login') }}" class="login-google-btn">Continue with Google</a>
-                <div class="login-divider"><span>or sign in with admin credentials</span></div>
-            {% endif %}
 
             <div class="login-form-grid">
                 <label class="login-field">
-                    <span>Username</span>
-                    <input type="text" name="username" placeholder="Enter username" required>
+                    <span>Email</span>
+                    <input type="text" name="username" placeholder="you@example.com" required>
                 </label>
 
                 <label class="login-field">
@@ -78,7 +73,7 @@
                 id="loginSubmitButton"
                 {% if recaptcha_site_key %}disabled aria-disabled="true"{% endif %}
             >
-                Sign in
+                Sign In
             </button>
 
             {% if error %}

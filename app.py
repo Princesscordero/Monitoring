@@ -165,14 +165,6 @@ esp32_last = {
     "payload": None
 }
 
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
-GOOGLE_DISCOVERY_DOC = "https://accounts.google.com/.well-known/openid-configuration"
-GOOGLE_ALLOWED_EMAILS = {
-    email.strip().lower()
-    for email in os.environ.get("GOOGLE_ALLOWED_EMAILS", "").split(",")
-    if email.strip()
-}
 RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "").strip()
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "").strip()
 LOGIN_WINDOW_SECONDS = 300
@@ -266,12 +258,12 @@ def set_security_headers(response):
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https://www.gstatic.com; "
         "font-src 'self' data:; "
-        "connect-src 'self' https://accounts.google.com https://www.google.com; "
+        "connect-src 'self' https://www.google.com; "
         "frame-src https://www.google.com https://www.gstatic.com; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'self'; "
-        "form-action 'self' https://accounts.google.com"
+        "form-action 'self'"
     )
     return response
 
@@ -285,20 +277,6 @@ def fetch_json(url, data=None, headers=None):
     request = urllib.request.Request(url, data=payload, headers=request_headers)
     with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read().decode("utf-8"))
-
-
-def get_google_config():
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        return None
-
-    try:
-        return fetch_json(GOOGLE_DISCOVERY_DOC)
-    except Exception:
-        return None
-
-
-def get_google_redirect_uri():
-    return url_for("google_callback", _external=True)
 
 
 def verify_recaptcha(response_token, remote_ip=None):
@@ -324,10 +302,6 @@ def verify_recaptcha(response_token, remote_ip=None):
         return bool(result.get("success")), result.get("error-codes", [])
     except Exception:
         return False, ["verification-failed"]
-
-
-def google_login_enabled():
-    return bool(GOOGLE_ALLOWED_EMAILS) and get_google_config() is not None
 
 
 def get_data_source_label():
@@ -586,7 +560,6 @@ def login():
             return render_template(
                 "login.html",
                 error=error,
-                google_login_enabled=google_login_enabled(),
                 recaptcha_site_key=RECAPTCHA_SITE_KEY
             ), 429
 
@@ -599,7 +572,6 @@ def login():
             return render_template(
                 "login.html",
                 error=error,
-                google_login_enabled=google_login_enabled(),
                 recaptcha_site_key=RECAPTCHA_SITE_KEY
             )
 
@@ -621,79 +593,19 @@ def login():
     return render_template(
         "login.html",
         error=error,
-        google_login_enabled=google_login_enabled(),
         recaptcha_site_key=RECAPTCHA_SITE_KEY
     )
 
 
-@app.route("/auth/google")
-def google_login():
-    google_config = get_google_config()
-    if not google_config:
-        return redirect(url_for("login"))
-
-    state = secrets.token_urlsafe(24)
-    session["google_oauth_state"] = state
-
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": get_google_redirect_uri(),
-        "response_type": "code",
-        "scope": "openid email profile",
-        "state": state,
-        "access_type": "online",
-        "include_granted_scopes": "true",
-        "prompt": "select_account"
-    }
-    auth_url = f'{google_config["authorization_endpoint"]}?{urllib.parse.urlencode(params)}'
-    return redirect(auth_url)
+@app.route("/forgot-password")
+def forgot_password():
+    return render_template("forgot_password.html")
 
 
-@app.route("/auth/google/callback")
-def google_callback():
-    google_config = get_google_config()
-    if not google_config:
-        return redirect(url_for("login"))
+@app.route("/sign-up")
+def sign_up():
+    return render_template("sign_up.html")
 
-    state = request.args.get("state")
-    if not state or state != session.pop("google_oauth_state", None):
-        return redirect(url_for("login"))
-
-    if request.args.get("error"):
-        return redirect(url_for("login"))
-
-    code = request.args.get("code")
-    if not code:
-        return redirect(url_for("login"))
-
-    try:
-        token_data = fetch_json(
-            google_config["token_endpoint"],
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": get_google_redirect_uri(),
-                "grant_type": "authorization_code"
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        userinfo = fetch_json(
-            google_config["userinfo_endpoint"],
-            headers={"Authorization": f'Bearer {token_data["access_token"]}'}
-        )
-    except Exception:
-        return redirect(url_for("login"))
-
-    email = (userinfo.get("email") or "").lower()
-    email_verified = bool(userinfo.get("email_verified"))
-    if not email_verified or (GOOGLE_ALLOWED_EMAILS and email not in GOOGLE_ALLOWED_EMAILS):
-        return redirect(url_for("login"))
-
-    session["admin_logged_in"] = True
-    session["admin_email"] = email
-    clear_login_failures(get_client_ip())
-    return redirect(url_for("home"))
 
 @app.route("/port/<port_id>/start", methods=["POST"])
 def start_port(port_id):
