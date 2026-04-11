@@ -350,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("power").innerText = Number(data.power || 0).toFixed(2) + " W";
     document.getElementById("voltage").innerText = Number(data.voltage || 0).toFixed(2) + " V";
-    document.getElementById("frequency").innerText = Number(data.frequency || 0).toFixed(1) + " Hz";
+    document.getElementById("current").innerText = Number(data.current || 0).toFixed(2) + " A";
     document.getElementById("heroPower").innerText = Number(data.power || 0).toFixed(2) + " W";
     document.getElementById("heroBattery").innerText = Number(data.battery || 0).toFixed(1) + "%";
 

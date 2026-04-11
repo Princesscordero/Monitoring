@@ -93,6 +93,7 @@ settings = {
 system_cache = {
     "power": 0.0,
     "voltage": 12.0,
+    "current": 0.0,
     "frequency": 90.0,
     "last_metrics_update": time.time(),
     "last_battery_update": time.time(),
@@ -308,17 +309,99 @@ def get_data_source_label():
     return "ESP32 Live" if esp32_online else "Simulation"
 
 
-def append_system_history(power_value, voltage_value, frequency_value):
+def _coerce_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "connected"}
+    return False
+
+
+def _coerce_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def normalize_esp32_payload(data):
+    if not isinstance(data, dict):
+        raise ValueError("Payload must be a JSON object")
+
+    ports_payload = data.get("ports")
+    if ports_payload is None:
+        ports_payload = {
+            "p1": data.get("p1") or data.get("port1"),
+            "p2": data.get("p2") or data.get("port2"),
+            "p3": data.get("p3") or data.get("port3"),
+        }
+
+    if not isinstance(ports_payload, dict):
+        raise ValueError("ports must be an object")
+
+    normalized_ports = {}
+    for pid in ["p1", "p2", "p3"]:
+        raw_port = ports_payload.get(pid)
+        if raw_port is None:
+            raise ValueError(f"Missing port payload for {pid}")
+        if not isinstance(raw_port, dict):
+            raise ValueError(f"{pid} must be an object")
+
+        connected = _coerce_bool(
+            raw_port.get("connected", raw_port.get("is_connected", raw_port.get("plugged")))
+        )
+        current = _coerce_float(raw_port.get("current", raw_port.get("amps", raw_port.get("ampere"))), 0.0)
+        power = _coerce_float(raw_port.get("power", raw_port.get("watt", raw_port.get("watts"))), 0.0)
+        voltage = _coerce_float(raw_port.get("voltage", data.get("voltage", system_cache.get("voltage", 12.0))), system_cache.get("voltage", 12.0))
+        status = raw_port.get("status")
+        if not status:
+            status = "NO_DEVICE" if not connected else ("CHARGING" if power > 0 else "IDLE")
+
+        normalized_ports[pid] = {
+            "connected": connected,
+            "current": round(current, 2),
+            "power": round(power, 2),
+            "voltage": round(voltage, 2),
+            "status": str(status).upper()
+        }
+
+    total_power = data.get("power")
+    if total_power is None:
+        total_power = sum(port["power"] for port in normalized_ports.values())
+
+    battery_value = data.get("battery", data.get("battery_percent", data.get("batteryPercentage")))
+    frequency_value = data.get("frequency", data.get("freq", data.get("vibration_frequency")))
+    voltage_value = data.get("voltage", data.get("system_voltage", data.get("bus_voltage")))
+
+    if battery_value is None:
+        raise ValueError("Missing field: battery")
+    if frequency_value is None:
+        raise ValueError("Missing field: frequency")
+    if voltage_value is None:
+        raise ValueError("Missing field: voltage")
+
+    return {
+        "voltage": round(_coerce_float(voltage_value, system_cache.get("voltage", 12.0)), 2),
+        "frequency": round(_coerce_float(frequency_value, system_cache.get("frequency", 90.0)), 1),
+        "battery": round(_coerce_float(battery_value, battery), 1),
+        "power": round(_coerce_float(total_power, 0.0), 2),
+        "ports": normalized_ports
+    }
+
+
+def append_system_history(power_value, voltage_value, current_value):
     timestamp = datetime.now().strftime("%H:%M:%S")
     entry = {
         "time": timestamp,
         "power": round(power_value, 2),
         "voltage": round(voltage_value, 2),
-        "frequency": round(frequency_value, 1),
+        "current": round(current_value, 2),
         "battery": round(battery, 1)
     }
 
-    if not system_history or any(system_history[-1][key] != entry[key] for key in ("power", "voltage", "frequency", "battery")):
+    if not system_history or any(system_history[-1][key] != entry[key] for key in ("power", "voltage", "current", "battery")):
         system_history.append(entry)
         if len(system_history) > 180:
             del system_history[:-180]
@@ -353,7 +436,7 @@ def build_report_summary():
         "system": {
             "power": round(system_cache.get("power", 0.0), 2),
             "voltage": round(system_cache.get("voltage", 0.0), 2),
-            "frequency": round(system_cache.get("frequency", 0.0), 1),
+            "current": round(system_cache.get("current", 0.0), 2),
             "battery": round(battery, 1),
             "charging": charging
         },
@@ -401,7 +484,7 @@ def build_readable_report_text(report):
         "-" * 15,
         f"Power Output: {report['system']['power']:.2f} W",
         f"Voltage: {report['system']['voltage']:.2f} V",
-        f"Vibration Frequency: {report['system']['frequency']:.1f} Hz",
+        f"Total Current: {report['system']['current']:.2f} A",
         f"Battery Level: {report['system']['battery']:.1f}%",
         f"Charging State: {'Charging' if report['system']['charging'] else 'Idle'}",
         "",
@@ -450,7 +533,7 @@ def build_readable_report_text(report):
         if recent_points:
             for point in recent_points:
                 lines.append(
-                    f"{point['time']}  |  {point['power']:.2f} W  |  {point['voltage']:.2f} V  |  {point['frequency']:.1f} Hz  |  {point['battery']:.1f}%"
+                    f"{point['time']}  |  {point['power']:.2f} W  |  {point['voltage']:.2f} V  |  {point['current']:.2f} A  |  {point['battery']:.1f}%"
                 )
         else:
             lines.append("No recent power history available yet.")
@@ -796,29 +879,41 @@ def esp32_ingest():
     if not data:
         return jsonify({"ok": False, "error": "Invalid JSON"}), 400
 
-    # Minimal fields expected from ESP32
-    required = ["voltage", "frequency", "battery", "ports"]
-    for k in required:
-        if k not in data:
-            return jsonify({"ok": False, "error": f"Missing field: {k}"}), 400
-
-    if not isinstance(data["ports"], dict):
-        return jsonify({"ok": False, "error": "ports must be object"}), 400
-
-    for pid in ["p1", "p2", "p3"]:
-        if pid not in data["ports"]:
-            return jsonify({"ok": False, "error": f"Missing ports.{pid}"}), 400
-
-        p = data["ports"][pid]
-        for pk in ["connected", "current", "power"]:
-            if pk not in p:
-                return jsonify({"ok": False, "error": f"Missing ports.{pid}.{pk}"}), 400
+    try:
+        normalized = normalize_esp32_payload(data)
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
 
     # Store latest
     esp32_last["timestamp"] = time.time()
-    esp32_last["payload"] = data
+    esp32_last["payload"] = normalized
 
-    return jsonify({"ok": True})
+    return jsonify({
+        "ok": True,
+        "source": "ESP32",
+        "received_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "normalized": normalized
+    })
+
+
+@app.route("/api/esp32/status")
+def esp32_status():
+    if not is_admin_logged_in():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    now = time.time()
+    online = (
+        settings.get("enable_esp32", True)
+        and esp32_last["payload"] is not None
+        and (now - esp32_last["timestamp"]) <= settings.get("esp32_ttl", ESP32_TTL_SECONDS)
+    )
+
+    return jsonify({
+        "ok": True,
+        "online": online,
+        "last_seen_seconds": None if not esp32_last["timestamp"] else round(now - esp32_last["timestamp"], 2),
+        "payload": esp32_last["payload"]
+    })
 
 # ==========================
 # DASHBOARD
@@ -938,13 +1033,9 @@ def data():
                 float(live["ports"][pid]["power"]) for pid in ["p1", "p2", "p3"]
             )
 
-        append_system_history(
-            system_cache["power"],
-            system_cache["voltage"],
-            system_cache["frequency"]
-        )
-
         # update ports from ESP32
+        charging = False
+        total_current = 0.0
         for pid in ["p1", "p2", "p3"]:
             p = ports[pid]
             esp_p = live["ports"][pid]
@@ -959,17 +1050,24 @@ def data():
             else:
                 p["current"] = float(esp_p["current"])
                 p["power"] = float(esp_p["power"])
-                p["voltage"] = system_cache["voltage"]
+                p["voltage"] = float(esp_p.get("voltage", system_cache["voltage"]))
+                p["status"] = esp_p.get("status", "CHARGING" if p["power"] > 0 else "IDLE")
+                total_current += p["current"]
+                if p["status"] == "CHARGING":
+                    charging = True
 
-                # If manual OFF, status follows power
-                if not p["manual_enabled"]:
-                    p["status"] = "CHARGING" if p["power"] > 0 else "IDLE"
+        system_cache["current"] = round(total_current, 2)
+        append_system_history(
+            system_cache["power"],
+            system_cache["voltage"],
+            system_cache["current"]
+        )
 
         # return ESP32 data (no simulation overwrite)
         return jsonify({
             "power": system_cache["power"],
             "voltage": system_cache["voltage"],
-            "frequency": system_cache["frequency"],
+            "current": system_cache["current"],
             "battery": round(battery, 1),
             "charging": charging,
             "ports": ports,
@@ -991,13 +1089,10 @@ def data():
     if now - system_cache["last_metrics_update"] >= metrics_interval:
         system_cache["power"] = round(random.uniform(1.0, 6.0), 2)
         system_cache["voltage"] = round(random.uniform(11.5, 13.0), 2)
-        system_cache["frequency"] = round(random.uniform(80, 100), 1)
         system_cache["last_metrics_update"] = now
 
     power = system_cache["power"]
     voltage = system_cache["voltage"]
-    frequency = system_cache["frequency"]
-    append_system_history(power, voltage, frequency)
 
     # 2) BATTERY (timed)
     if now - system_cache["last_battery_update"] >= battery_interval:
@@ -1075,10 +1170,13 @@ def data():
         if port["status"] == "CHARGING" and port["connected"]:
             port["session_wh"] += (port["power"] * dt) / 3600.0
 
+    system_cache["current"] = round(sum(port.get("current", 0.0) for port in ports.values()), 2)
+    append_system_history(power, voltage, system_cache["current"])
+
     return jsonify({
         "power": power,
         "voltage": voltage,
-        "frequency": frequency,
+        "current": system_cache["current"],
         "battery": round(battery, 1),
         "charging": charging,
         "ports": ports,
